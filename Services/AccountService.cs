@@ -93,5 +93,11 @@ namespace IdentityAspNetCore.Services
                         .GenerateEmailConfirmationTokenAsync(user);
             return (code, user.Id);
         }
+        public async Task<IdentityResult> ConfirmEmailAsync(string userId, string code)
+        {
+            if (string.IsNullOrEmpty(userId)) return null;
+            var user = await _userManager.FindByIdAsync(userId);
+            return await _userManager.ConfirmEmailAsync(user, code);
+        }
     }
 }

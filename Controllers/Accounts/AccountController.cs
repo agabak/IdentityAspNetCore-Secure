@@ -118,6 +118,14 @@ namespace IdentityAspNetCore.Controllers.Accounts
             }
         }
 
+        public async Task<IActionResult> ConfirmEmail(string userId, string code)
+        {
+            if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(code)) 
+                 return View("Error");
+            var result = await _accountService.ConfirmEmailAsync(userId, code);
+            return View(result.Succeeded ? "ConfirmEmail" : "Error");
+        }
+
         private async Task SendResetPasswordEmail(string email, (string, string) user)
         {
             var callbackurl = Url.Action("ResetPassword", "Account",
