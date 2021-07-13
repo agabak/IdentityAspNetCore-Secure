@@ -36,6 +36,7 @@ namespace IdentityAspNetCore
 
             // register email sender 
             services.AddTransient<IEmailSender, MailJetEmailSenderService>();
+            services.AddTransient<ISendEmailService, SendEmailService>();
             //configure identity option for you're needs
            //  services.Configure<IdentityOptions>(opt =>{});
 

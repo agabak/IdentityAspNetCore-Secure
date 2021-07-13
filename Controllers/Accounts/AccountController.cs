@@ -1,7 +1,6 @@
 ﻿using IdentityAspNetCore.Models;
 using IdentityAspNetCore.Services;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks;
 
@@ -10,13 +9,13 @@ namespace IdentityAspNetCore.Controllers.Accounts
     public class AccountController : Controller
     {
         private readonly IAccountService _accountService;
-        private readonly IEmailSender _emailSender;
+        private readonly ISendEmailService _sendEmail;
         public AccountController(
             IAccountService accountService,
-            IEmailSender emailSender)
+            ISendEmailService sendEmail)
         {
             _accountService = accountService;
-            _emailSender = emailSender;
+            _sendEmail = sendEmail;
         }
 
         public IActionResult Register() => View();
@@ -31,6 +30,10 @@ namespace IdentityAspNetCore.Controllers.Accounts
 
             if (result.Succeeded)
             {
+                var userIdCode = await _accountService.EmailConfirmationCode(model.Email);
+
+                await SendEmailConfirmationEmail(model.Email, userIdCode);
+
                 var singIn = await _accountService.LoginUserAsync(model);
                 if (singIn.Succeeded) return LocalRedirect(returnurl);
                 return BadRequest("Fail to authenticate");
@@ -82,15 +85,12 @@ namespace IdentityAspNetCore.Controllers.Accounts
             if (string.IsNullOrEmpty(user.Item1))
                 return RedirectToAction("ForgotPasswordConfirmation");
 
-            var callbackurl = Url.Action("ResetPassword", "Account",
-                new { userId = user.Item1, code = user.Item2 }, protocol: HttpContext.Request.Scheme);
-            await _emailSender.SendEmailAsync(model.Email, "Reset Password",
-                "Please reset your password by clicking here: <a href=\"" + callbackurl + "\"> link");
+            await SendResetPasswordEmail(model.Email, user);
             return RedirectToAction("ForgotPasswordConfirmation");
         }
 
         public IActionResult ForgotPasswordConfirmation() => View();
-      
+
         public IActionResult ResetPassword(string code = null)
         {
             return code == null ? View("Error") : View();
@@ -103,15 +103,8 @@ namespace IdentityAspNetCore.Controllers.Accounts
             if (!ModelState.IsValid)
                 return RedirectToAction("ForgotPasswordConfirmation");
 
-           var user = await _accountService.ResetPassword(model);
-
-            if (string.IsNullOrEmpty(user.Item1))
-                return RedirectToAction("ForgotPasswordConfirmation");
-
-            var callbackurl = Url.Action("ResetPassword", "Account",
-                new { userId = user.Item1, code = user.Item2 }, protocol: HttpContext.Request.Scheme);
-            await _emailSender.SendEmailAsync(model.Email, "Reset Password",
-                "Please reset your password by clicking here: <a href=\"" + callbackurl + "\"> link");
+            var user = await _accountService.ResetPassword(model);
+            if (user.Succeeded) return View("ResetPasswordConfirmation");
             return RedirectToAction("ForgotPasswordConfirmation");
         }
 
@@ -123,6 +116,35 @@ namespace IdentityAspNetCore.Controllers.Accounts
             {
                 ModelState.AddModelError(string.Empty, error.Description);
             }
+        }
+
+        private async Task SendResetPasswordEmail(string email, (string, string) user)
+        {
+            var callbackurl = Url.Action("ResetPassword", "Account",
+                new { userId = user.Item1, code = user.Item2 }, protocol: HttpContext.Request.Scheme);
+
+            SendEmailViewModel sendEmailModel = new()
+            {
+                Email = email,
+                Subject = "Reset Password",
+                Message = "Please reset your password by clicking here: <a href=\"" + callbackurl + "\"> link"
+            };
+            await _sendEmail.SendEmailAsync(sendEmailModel);
+        }
+
+        private async Task SendEmailConfirmationEmail(string email, (string, string) userIdCode)
+        {
+            var callbackurl = Url.Action("ConfirmEmail", "Account",
+                 new { userId = userIdCode.Item1, code = userIdCode.Item2 }, protocol: HttpContext.Request.Scheme);
+
+            SendEmailViewModel sendEmailModel = new()
+            {
+                Email = email,
+                Subject = "Confirm your account",
+                Message = "Please reset your password by clicking here: <a href=\"" + callbackurl + "\"> link"
+            };
+
+            await _sendEmail.SendEmailAsync(sendEmailModel);
         }
     }
 }

@@ -84,5 +84,14 @@ namespace IdentityAspNetCore.Services
             return await _userManager
                 .ResetPasswordAsync(user, model.Code, model.Password);
         }
+
+        public async Task<(string,string)> EmailConfirmationCode(string userName)
+        {
+            var user = await _userManager.FindByEmailAsync(userName);
+            if (user is null) return (string.Empty, string.Empty);
+            var code = await _userManager
+                        .GenerateEmailConfirmationTokenAsync(user);
+            return (code, user.Id);
+        }
     }
 }

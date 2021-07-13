@@ -13,5 +13,7 @@ namespace IdentityAspNetCore.Services
                LoginViewModel loginView = null);
         Task Logout();
         Task<IdentityResult> ResetPassword(ResetPasswordViewModel model);
+        Task<(string,string)> EmailConfirmationCode(string userName);
+
     }
 }
