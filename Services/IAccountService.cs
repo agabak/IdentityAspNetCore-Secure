@@ -1,4 +1,5 @@
 ﻿using IdentityAspNetCore.Models;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using System.Threading.Tasks;
 
@@ -15,6 +16,8 @@ namespace IdentityAspNetCore.Services
         Task<IdentityResult> ResetPassword(ResetPasswordViewModel model);
         Task<(string,string)> EmailConfirmationCode(string userName);
         Task<IdentityResult> ConfirmEmailAsync(string userId, string code);
+        AuthenticationProperties 
+            ConfigureExternalAuthenticationProperties(string provider, string redirecturl);
 
     }
 }

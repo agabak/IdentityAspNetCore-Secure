@@ -1,4 +1,5 @@
 ﻿using IdentityAspNetCore.Models;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using System;
 using System.Threading.Tasks;
@@ -98,6 +99,13 @@ namespace IdentityAspNetCore.Services
             if (string.IsNullOrEmpty(userId)) return null;
             var user = await _userManager.FindByIdAsync(userId);
             return await _userManager.ConfirmEmailAsync(user, code);
+        }
+
+        public AuthenticationProperties 
+            ConfigureExternalAuthenticationProperties(string provider, string redirecturl)
+        {
+            return _signInManager
+                             .ConfigureExternalAuthenticationProperties(provider, redirecturl); ;
         }
     }
 }

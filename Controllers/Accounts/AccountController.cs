@@ -2,6 +2,8 @@
 using IdentityAspNetCore.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using System;
+using System.Security.Claims;
 using System.Threading.Tasks;
 
 namespace IdentityAspNetCore.Controllers.Accounts
@@ -10,12 +12,18 @@ namespace IdentityAspNetCore.Controllers.Accounts
     {
         private readonly IAccountService _accountService;
         private readonly ISendEmailService _sendEmail;
+        private readonly SignInManager<AppUser> _signInManager;
+        private readonly UserManager<AppUser> _userManager;
         public AccountController(
             IAccountService accountService,
-            ISendEmailService sendEmail)
+            ISendEmailService sendEmail,
+           SignInManager<AppUser> signInManager,
+           UserManager<AppUser> userManager)
         {
             _accountService = accountService;
             _sendEmail = sendEmail;
+            _signInManager = signInManager;
+            _userManager = userManager;
         }
 
         public IActionResult Register() => View();
@@ -126,6 +134,89 @@ namespace IdentityAspNetCore.Controllers.Accounts
             return View(result.Succeeded ? "ConfirmEmail" : "Error");
         }
 
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public IActionResult ExternalLogin(
+            string provider, string returnurl = null)
+        {
+            var redirecturl = Url.Action("ExternalLoginCallback", "Account", new { ReturnUlr = returnurl });
+            var properties = _accountService
+                           .ConfigureExternalAuthenticationProperties(provider, redirecturl);
+            return Challenge(properties,provider);
+        }
+
+        public async Task<IActionResult> ExternalLoginCallback(
+            string returnurl, string remoteError = null)
+        {
+            if(remoteError != null)
+            {
+                ModelState.AddModelError(string.Empty, $"Error from external provider: {remoteError}");
+                return View(nameof(Login));
+            }
+
+            var info = await _signInManager.GetExternalLoginInfoAsync();
+            if (info == null) return RedirectToAction(nameof(Login));
+
+            var result = await _signInManager
+                .ExternalLoginSignInAsync(info.LoginProvider, info.ProviderKey,false);
+            if(result.Succeeded)
+            { 
+                // update any authentication tokens
+                await _signInManager.UpdateExternalAuthenticationTokensAsync(info);
+                return LocalRedirect(returnurl);
+            }
+            else
+            {
+                //If the user does not have account, then will ask the user to create an account.
+                ViewData["ReturnUrl"] = returnurl;
+                ViewData["ProviderDisplayName"] = info.ProviderDisplayName; 
+
+                // value you getting from the external provider..
+                var email = info.Principal.FindFirstValue(ClaimTypes.Email);
+                var name = info.Principal.FindFirstValue(ClaimTypes.Name);
+                return View("ExternalLoginConfirmation", 
+               new ExternalLoginConfirmationViewModel 
+               { Email = email, FirstName = name, LastName = name });
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ExternalLoginConfirmation
+            (ExternalLoginConfirmationViewModel model, string returnurl)
+        {
+            if(ModelState.IsValid)
+            {
+                // get the information
+                var info = await _signInManager.GetExternalLoginInfoAsync();
+                if (info is null) return View("Error");
+
+                var user = new AppUser
+                {
+                    FirstName = model.FirstName,
+                    LastName = model.LastName,
+                    DateOfBorn = DateTime.Now,
+                    LastDateLogin = DateTime.Now,
+                    Email = model.Email
+                };
+
+                var result = await _userManager.CreateAsync(user);
+                if(result.Succeeded)
+                {
+                    result = await _userManager.AddLoginAsync(user, info);
+                    if (result.Succeeded)
+                    {
+                        await _signInManager.SignInAsync(user, false);
+                        await _signInManager.UpdateExternalAuthenticationTokensAsync(info);
+                        return LocalRedirect(returnurl);
+                    }
+                }
+                AddErrors(result);
+            }
+            ViewData["ReturnUrl"] = returnurl;
+            return View(model);
+        }
+
         private async Task SendResetPasswordEmail(string email, (string, string) user)
         {
             var callbackurl = Url.Action("ResetPassword", "Account",
@@ -151,7 +242,6 @@ namespace IdentityAspNetCore.Controllers.Accounts
                 Subject = "Confirm your account",
                 Message = "Please reset your password by clicking here: <a href=\"" + callbackurl + "\"> link"
             };
-
             await _sendEmail.SendEmailAsync(sendEmailModel);
         }
     }

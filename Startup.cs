@@ -34,6 +34,12 @@ namespace IdentityAspNetCore
             }).AddEntityFrameworkStores<ApplicationDbContext>()
               .AddDefaultTokenProviders();
 
+            // add external login add here
+            // Microsoft.AspNetCore.Authentication.OpenIdConnect
+            services.AddAuthentication()
+                    .AddOpenIdConnect("AzureAd", "Login with Azure Ad",
+                    opts => _config.Bind("AzureAd", opts));
+
             // register email sender 
             services.AddTransient<IEmailSender, MailJetEmailSenderService>();
             services.AddTransient<ISendEmailService, SendEmailService>();
